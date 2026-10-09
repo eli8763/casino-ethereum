@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DApp</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 12px;
+            background: #1a1a2e;
+            color: white;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00d4ff;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            background: #00d4ff;
+            color: #1a1a2e;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #16213e;
+            color: white;
+        }
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #16213e;
+            border-radius: 8px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DApp</h1>
+        <button class="btn" id="connectBtn">connect MetaMask wallet</button>
+        <div class="info-box" id="accountInfo">no wallet connection yet</div>
+
+        <h3 style="margin: 20px 0 10px">user money</h3>
+        <input type="number" class="input" id="depositAmount" placeholder="enter your money（ETH）">
+        <button class="btn" id="depositBtn">ensure</button>
+
+        <h3 style="margin: 20px 0 10px">start</h3>
+        <input type="number" class="input" id="betNumber" placeholder="enter munber 1-10">
+        <input type="number" class="input" id="betAmount" placeholder="enter investion（：ETH）">
+        <button class="btn" id="placeBetBtn">ensure</button>
+
+        <h3 style="margin: 20px 0 10px">cheak</h3>
+        <button class="btn" id="getBalanceBtn">cheak account</button>
+        <input type="number" class="input" id="withdrawAmount" placeholder="enter the money you want to take（ETH）">
+        <button class="btn" id="withdrawBtn">ensure</button>
+
+        <div class="info-box" id="statusBox">condition</div>
+    </div>
+
+    <!-- Ethers.js-->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+    <script>
+    
+        const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+        
+        const CONTRACT_ABI = [
+            "function deposit() external payable",
+            "function placeBet(uint256 betNumber) external payable",
+            "function withdraw(uint256 withdrawAmount) external",
+            "function getPlayerBalance(address player) external view returns(uint256)"
+        ];
+
+        let provider, signer, casinoContract;
+        const statusBox = document.getElementById('statusBox');
+        const accountInfo = document.getElementById('accountInfo');
+
+        // 1. connect MetaMask
+        document.getElementById('connectBtn').onclick = async () => {
+            if (!window.ethereum) return alert("Please download MetaMask");
+            try {
+                
+                await window.ethereum.request({method: 'eth_requestAccounts'});
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                casinoContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                const userAddress = await signer.getAddress();
+                accountInfo.innerText = `connect：${userAddress}`;
+                statusBox.innerText = "success";
+            } catch (err) {
+                statusBox.innerText = "failed：" + err.message;
+            }
+        };
+
+        // 2. 存款功能
+        document.getElementById('depositBtn').onclick = async () => {
+            if (!casinoContract) return alert("Please connect wallet");
+            const amountEth = document.getElementById('depositAmount').value;
+            try {
+                const tx = await casinoContract.deposit({
+                    value: ethers.parseEther(amountEth)
+                });
+                statusBox.innerText = `send：${tx.hash}`;
+                await tx.wait();
+                statusBox.innerText = "success！";
+            } catch (err) {
+                statusBox.innerText = "failed：" + err.message;
+            }
+        };
+
+        // 3. 投注功能
+        document.getElementById('placeBetBtn').onclick = async () => {
+            if (!casinoContract) return alert("Please connect wallet");
+            const betNum = document.getElementById('betNumber').value;
+            const betEth = document.getElementById('betAmount').value;
+            try {
+                const tx = await casinoContract.placeBet(betNum, {
+                    value: ethers.parseEther(betEth)
+                });
+                statusBox.innerText = `send：${tx.hash}`;
+                const receipt = await tx.wait();
+                statusBox.innerText = "success";
+            } catch (err) {
+                statusBox.innerText = "failed：" + err.message;
+            }
+        };
+
+        // 4. 查询余额功能
+        document.getElementById('getBalanceBtn').onclick = async () => {
+            if (!casinoContract) return alert("Please connect wallet");
+            const userAddr = await signer.getAddress();
+            const balanceWei = await casinoContract.getPlayerBalance(userAddr);
+            const balanceEth = ethers.formatEther(balanceWei);
+            statusBox.innerText = `${balanceEth} ETH`;
+        };
+
+        // 5. 提现功能
+        document.getElementById('withdrawBtn').onclick = async () => {
+            if (!casinoContract) return alert("Please connect wallet");
+            const withdrawEth = document.getElementById('withdrawAmount').value;
+            try {
+                const tx = await casinoContract.withdraw(ethers.parseEther(withdrawEth));
+                statusBox.innerText = `send：${tx.hash}`;
+                await tx.wait();
+                statusBox.innerText = "success";
+            } catch (err) {
+                statusBox.innerText = "failed：" + err.message;
+            }
+        };
+    </script>
+</body>
+</html>
